@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -78,6 +79,7 @@ button{
     color:#BBBBBB;
     font-family:monospace;
     word-break:break-all;
+    font-size: 13px;
 }
 </style>
 
@@ -88,7 +90,6 @@ button{
 <h1>AceStream Sports Search</h1>
 
 <input id="query" value="sport OR deporte OR BeIn OR Caracol OR Deportes OR Fox OR Colombia OR DAZN OR DIRECTV OR ELGOLES OR ESPN OR Globo OR equipe OR Amazon OR Match Premier OR Movistar OR RCN OR setanta OR TNT OR TyC">
-
 
 <button onclick="search()">Search</button>
 
@@ -135,7 +136,10 @@ async function search(){
                 if(!channel.items || channel.items.length === 0) continue;
 
                 const item = channel.items[0];
-                const stream = "acestream://" + item.infohash;
+                const infohash = item.infohash;
+
+                // ✅ CORRECT PLAYBACK URL: Uses /ace/getstream?id= (like the working site)
+                const playUrl = "http://localhost:6878/ace/getstream?id=" + infohash;
 
                 const card = document.createElement("div");
                 card.className = "card";
@@ -158,27 +162,16 @@ async function search(){
                     epg.textContent = "📺 Now: " + channel.epg[0].name;
                 }
 
+                // ✅ Play button opens the HTTP stream directly (works with MPV/VLC/Browser)
                 const play = document.createElement("a");
                 play.className = "play";
-                play.href = "#";
-                play.textContent = "▶ Play";
+                play.href = playUrl;
+                play.target = "_blank"; // Opens in new tab or external player
+                play.textContent = "▶ Play Stream";
 
                 const uri = document.createElement("div");
                 uri.className = "uri";
-                uri.textContent = stream;
-
-                // ✅ CLICK HANDLER (THIS IS THE IMPORTANT FIX)
-                play.addEventListener("click", (e) => {
-                    e.preventDefault();
-
-                    console.log("CLICK:", stream);
-
-                    // show proof click works
-                    alert("Opening:\n" + stream);
-
-                    // launch AceStream
-                    window.location.href = stream;
-                });
+                uri.textContent = playUrl;
 
                 card.appendChild(name);
                 card.appendChild(meta);
