@@ -1,0 +1,213 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Ace Sports Search</title>
+
+<style>
+body{
+    font-family:Arial,Helvetica,sans-serif;
+    background:#202124;
+    color:white;
+    margin:30px;
+}
+
+h1{ margin-top:0; }
+
+input{
+    width:700px;
+    max-width:100%;
+    padding:10px;
+    font-size:15px;
+}
+
+button{
+    padding:10px 20px;
+    font-size:15px;
+    cursor:pointer;
+    margin-left:10px;
+}
+
+#status{
+    margin-top:20px;
+    color:#90CAF9;
+}
+
+.card{
+    background:#303134;
+    margin-top:12px;
+    padding:15px;
+    border-radius:8px;
+    border-left:5px solid #4FC3F7;
+}
+
+.name{
+    font-size:20px;
+    font-weight:bold;
+    color:#4FC3F7;
+}
+
+.meta{
+    margin-top:8px;
+    color:#CCCCCC;
+}
+
+.epg{
+    margin-top:8px;
+    color:#FFD54F;
+}
+
+.play{
+    display:inline-block;
+    margin-top:12px;
+    padding:8px 18px;
+    background:#00C853;
+    color:white;
+    text-decoration:none;
+    border-radius:5px;
+    font-weight:bold;
+    cursor:pointer;
+}
+
+.play:hover{
+    background:#00E676;
+}
+
+.uri{
+    margin-top:10px;
+    color:#BBBBBB;
+    font-family:monospace;
+    word-break:break-all;
+}
+</style>
+
+</head>
+
+<body>
+
+<h1>AceStream Sports Search</h1>
+
+<input id="query" value="sport OR deporte OR BeIn OR Caracol OR Deportes OR Fox OR Colombia OR DAZN OR DIRECTV OR ELGOLES OR ESPN OR Globo OR equipe OR Amazon OR Match Premier OR Movistar OR RCN OR setanta OR TNT OR TyC">
+
+
+<button onclick="search()">Search</button>
+
+<p id="status"></p>
+
+<div id="results"></div>
+
+<script>
+
+async function search(){
+
+    const query = document.getElementById("query").value;
+    const results = document.getElementById("results");
+
+    results.innerHTML = "";
+    document.getElementById("status").textContent = "Searching...";
+
+    let page = 0;
+    let total = 0;
+
+    while(true){
+
+        const url =
+            "http://localhost:6878/search" +
+            "?page=" + page +
+            "&page_size=200" +
+            "&group_by_channels=1" +
+            "&show_epg=1" +
+            "&query=" + encodeURIComponent(query);
+
+        try{
+
+            const response = await fetch(url);
+            const json = await response.json();
+
+            const channels = json.result.results;
+
+            if(!channels || channels.length === 0) break;
+
+            total += channels.length;
+
+            for(const channel of channels){
+
+                if(!channel.items || channel.items.length === 0) continue;
+
+                const item = channel.items[0];
+                const stream = "acestream://" + item.infohash;
+
+                const card = document.createElement("div");
+                card.className = "card";
+
+                const name = document.createElement("div");
+                name.className = "name";
+                name.textContent = channel.name;
+
+                const meta = document.createElement("div");
+                meta.className = "meta";
+                meta.textContent =
+                    "Availability: " + item.availability +
+                    " | Bitrate: " + item.bitrate +
+                    " | Country: " + (item.countries ? item.countries.join(", ") : "") +
+                    " | Language: " + (item.languages ? item.languages.join(", ") : "");
+
+                const epg = document.createElement("div");
+                epg.className = "epg";
+                if(channel.epg && channel.epg.length){
+                    epg.textContent = "📺 Now: " + channel.epg[0].name;
+                }
+
+                const play = document.createElement("a");
+                play.className = "play";
+                play.href = "#";
+                play.textContent = "▶ Play";
+
+                const uri = document.createElement("div");
+                uri.className = "uri";
+                uri.textContent = stream;
+
+                // ✅ CLICK HANDLER (THIS IS THE IMPORTANT FIX)
+                play.addEventListener("click", (e) => {
+                    e.preventDefault();
+
+                    console.log("CLICK:", stream);
+
+                    // show proof click works
+                    alert("Opening:\n" + stream);
+
+                    // launch AceStream
+                    window.location.href = stream;
+                });
+
+                card.appendChild(name);
+                card.appendChild(meta);
+                if(epg.textContent) card.appendChild(epg);
+                card.appendChild(play);
+                card.appendChild(uri);
+
+                results.appendChild(card);
+            }
+
+            page++;
+
+        } catch(error){
+
+            document.getElementById("status").innerHTML =
+                "<span style='color:red'>Cannot connect to AceStream engine (localhost:6878)</span>";
+
+            console.error(error);
+            return;
+        }
+    }
+
+    document.getElementById("status").textContent =
+        "Found " + total + " channels.";
+}
+
+search();
+
+</script>
+
+</body>
+</html>
