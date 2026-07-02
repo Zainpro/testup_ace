@@ -2,7 +2,9 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Ace Sports Search</title>
+<title>Ace Search</title>
+<!-- Include hls.js for browser-based playback -->
+<script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 
 <style>
 body{ font-family:Arial,Helvetica,sans-serif; background:#202124; color:white; margin:30px; }
@@ -10,78 +12,110 @@ h1{ margin-top:0; }
 input{ width:700px; max-width:100%; padding:10px; font-size:15px; }
 button{ padding:10px 20px; font-size:15px; cursor:pointer; margin-left:10px; }
 #status{ margin-top:20px; color:#90CAF9; }
+
 .card{ background:#303134; margin-top:12px; padding:15px; border-radius:8px; border-left:5px solid #4FC3F7; }
 .name{ font-size:20px; font-weight:bold; color:#4FC3F7; }
 .meta{ margin-top:8px; color:#CCCCCC; }
 .epg{ margin-top:8px; color:#FFD54F; }
+
 .play{ display:inline-block; margin-top:12px; padding:8px 18px; background:#00C853; color:white; text-decoration:none; border-radius:5px; font-weight:bold; cursor:pointer; }
 .play:hover{ background:#00E676; }
 .uri{ margin-top:10px; color:#BBBBBB; font-family:monospace; word-break:break-all; }
-</style>
 
+/* Player Styles */
+#player-container {
+    margin-top: 20px;
+    display: none;
+    background: #000;
+    padding: 10px;
+    border-radius: 8px;
+    max-width: 800px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+}
+video { width: 100%; background: black; }
+#stop-btn { margin-top: 10px; background: #FF5252; }
+</style>
 </head>
+
 <body>
 
 <h1>AceStream Sports Search</h1>
 
 <input id="query" value="sport OR deporte OR BeIn OR Caracol OR Deportes OR Fox OR Colombia OR DAZN OR DIRECTV OR ELGOLES OR ESPN OR Globo OR equipe OR Amazon OR Match Premier OR Movistar OR RCN OR setanta OR TNT OR TyC">
 <button onclick="search()">Search</button>
+
 <p id="status"></p>
+
+<!-- Video Player Container -->
+<div id="player-container">
+    <video id="player" controls autoplay></video>
+    <button id="stop-btn" onclick="stopPlayer()">Stop Stream</button>
+</div>
+
 <div id="results"></div>
 
 <script>
+
+// Hardcoded test hash (Infohash format for HLS)
+const testHash = "b04372b9543d763bd2dbd2a1842d9723fd080076";
+
 async function search(){
     const query = document.getElementById("query").value;
     const results = document.getElementById("results");
     results.innerHTML = "";
     document.getElementById("status").textContent = "Searching...";
-    
+
+    // 1. Add Test Stream Card
+    const testCard = document.createElement("div");
+    testCard.className = "card";
+    testCard.style.borderLeftColor = "#FF5252";
+    testCard.innerHTML = `
+        <div class="name">🧪 Test Stream (Hardcoded)</div>
+        <div class="meta">Manual test stream for verifying playback.</div>
+        <a href="#" class="play" onclick="playStream('${testHash}'); return false;">▶ Play in Browser</a>
+        <div class="uri">acestream://${testHash}</div>
+    `;
+    results.appendChild(testCard);
+
     let page = 0;
-    let total = 0;
+    let total = 1;
 
     while(true){
-        const url = "http://localhost:6878/search?page=" + page + "&page_size=200&group_by_channels=1&show_epg=1&query=" + encodeURIComponent(query);
+        const url = `http://localhost:6878/search?page=${page}&page_size=200&group_by_channels=1&show_epg=1&query=${encodeURIComponent(query)}`;
         try{
             const response = await fetch(url);
             const json = await response.json();
             const channels = json.result.results;
             if(!channels || channels.length === 0) break;
             total += channels.length;
-            
+
             for(const channel of channels){
                 if(!channel.items || channel.items.length === 0) continue;
                 const item = channel.items[0];
-                
+                const infohash = item.infohash; // This is an INFOHASH
+
                 const card = document.createElement("div");
                 card.className = "card";
-                
-                const name = document.createElement("div");
-                name.className = "name";
-                name.textContent = channel.name;
-                
-                const meta = document.createElement("div");
-                meta.className = "meta";
-                meta.textContent = "Availability: " + item.availability + " | Bitrate: " + item.bitrate + " | Country: " + (item.countries ? item.countries.join(", ") : "") + " | Language: " + (item.languages ? item.languages.join(", ") : "");
-                
-                const epg = document.createElement("div");
-                epg.className = "epg";
-                if(channel.epg && channel.epg.length){ epg.textContent = "📺 Now: " + channel.epg[0].name; }
-                
-                // ✅ EXACT MIMIC OF THE WORKING PAGE
-                const play = document.createElement("a");
-                play.className = "play";
-                play.href = "acestream://" + item.infohash; 
-                play.textContent = "▶ Play";
-                
-                const uri = document.createElement("div");
-                uri.className = "uri";
-                uri.textContent = play.href;
-                
-                card.appendChild(name);
-                card.appendChild(meta);
-                if(epg.textContent) card.appendChild(epg);
-                card.appendChild(play);
-                card.appendChild(uri);
+
+                const countries = item.countries ? (Array.isArray(item.countries) ? item.countries.join(", ") : item.countries) : "";
+                const languages = item.languages ? (Array.isArray(item.languages) ? item.languages.join(", ") : item.languages) : "";
+
+                let epgText = "";
+                if(channel.epg && channel.epg.name){
+                    epgText = `📺 Now: ${channel.epg.name}`;
+                }
+
+                card.innerHTML = `
+                    <div class="name">${channel.name}</div>
+                    <div class="meta">
+                        Availability: ${item.availability} | Bitrate: ${item.bitrate}
+                        ${countries ? `| Country: ${countries}` : ''}
+                        ${languages ? `| Language: ${languages}` : ''}
+                    </div>
+                    ${epgText ? `<div class="epg">${epgText}</div>` : ''}
+                    <a href="#" class="play" onclick="playStream('${infohash}'); return false;">▶ Play in Browser</a>
+                    <div class="uri">acestream://${infohash}</div>
+                `;
                 results.appendChild(card);
             }
             page++;
@@ -91,10 +125,67 @@ async function search(){
             return;
         }
     }
-    document.getElementById("status").textContent = "Found " + total + " channels.";
+    document.getElementById("status").textContent = `Found ${total} channels.`;
 }
-search();
-</script>
 
+let currentHls = null;
+
+function playStream(infohash) {
+    const video = document.getElementById('player');
+    const container = document.getElementById('player-container');
+    container.style.display = 'block';
+    
+    // Clean up previous instance
+    if (currentHls) {
+        currentHls.destroy();
+        currentHls = null;
+    }
+    video.src = '';
+    
+    // Use the AceStream Engine HLS endpoint with the INFOHASH parameter
+    // This bypasses the broken snap wrapper completely
+    const url = `http://127.0.0.1:6878/ace/manifest.m3u8?infohash=${infohash}`;
+    
+    if (Hls.isSupported()) {
+        const hls = new Hls();
+        currentHls = hls;
+        hls.loadSource(url);
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+            video.play().catch(e => console.error("Play error:", e));
+        });
+        hls.on(Hls.Events.ERROR, function(event, data) {
+            console.error('HLS error:', data);
+            if (data.fatal) {
+                alert('Error playing stream. Ensure AceStream engine is running and the stream has peers.');
+            }
+        });
+    } else if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        // Native HLS support (Safari)
+        video.src = url;
+        video.addEventListener('loadedmetadata', function() {
+            video.play().catch(e => console.error("Play error:", e));
+        });
+    } else {
+        alert('Your browser does not support HLS playback.');
+    }
+    
+    container.scrollIntoView({ behavior: 'smooth' });
+}
+
+function stopPlayer() {
+    const video = document.getElementById('player');
+    video.pause();
+    video.src = '';
+    if (currentHls) {
+        currentHls.destroy();
+        currentHls = null;
+    }
+    document.getElementById('player-container').style.display = 'none';
+}
+
+search();
+
+</script>
 </body>
 </html>
