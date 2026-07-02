@@ -71,7 +71,7 @@ async function search(){
     testCard.style.borderLeftColor = "#FF5252";
     testCard.innerHTML = `
         <div class="name">🧪 Test Stream (Hardcoded)</div>
-        <div class="meta">Manual test stream for verifying playback.</div>
+        <div class="meta">Test stream for verifying playback.</div>
         <a href="#" class="play" onclick="playStream('${testHash}'); return false;">▶ Play in Browser</a>
         <div class="uri">acestream://${testHash}</div>
     `;
@@ -101,8 +101,9 @@ async function search(){
                 const languages = item.languages ? (Array.isArray(item.languages) ? item.languages.join(", ") : item.languages) : "";
 
                 let epgText = "";
-                if(channel.epg && channel.epg.name){
-                    epgText = `📺 Now: ${channel.epg.name}`;
+                // ✅ FIX: channel.epg is an array, so we check its length and access the first element
+                if(channel.epg && channel.epg.length > 0){
+                    epgText = `📺 Now: ${channel.epg[0].name}`;
                 }
 
                 card.innerHTML = `
